@@ -1,0 +1,7 @@
+{
+  "name": "PixelForge - Online Image Tools",
+  "description": "Fast, privacy-first online image tools to compress, resize, crop, convert, filter, watermark, and inspect images directly in your browser with zero server uploads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

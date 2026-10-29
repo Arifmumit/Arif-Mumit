@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role-based access control metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "editor", "user"] },
+        "isSuperAdmin": { "type": "boolean" },
+        "emailVerified": { "type": "boolean" },
+        "disabled": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "isSuperAdmin", "emailVerified"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user account metadata",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Indexed admin and super admin lookup for fast authorization",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "role": { "type": "string", "enum": ["super_admin", "admin"] },
+        "isSuperAdmin": { "type": "boolean" },
+        "grantedBy": { "type": "string", "maxLength": 128 },
+        "grantedAt": { "type": "string" }
+      },
+      "required": ["uid", "role", "isSuperAdmin"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Audit trail of role assignments, promotions, and moderation actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 64 },
+        "performedByUid": { "type": "string", "maxLength": 128 },
+        "performedByEmail": { "type": "string", "maxLength": 256 },
+        "targetUid": { "type": "string", "maxLength": 128 },
+        "targetEmail": { "type": "string", "maxLength": 256 },
+        "details": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "action", "performedByUid", "targetUid"]
+    },
+    "PresetTemplate": {
+      "title": "PresetTemplate",
+      "description": "Shared compression, watermark, or filter presets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "toolType": { "type": "string", "maxLength": 32 },
+        "configJson": { "type": "string", "maxLength": 2048 },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 128 },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "toolType", "authorUid"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/profile": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public user profile and role details"
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user account info accessible only by the user"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Admin and Super Admin directory used for security rules lookups"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "System audit logs accessible only by Admins and Super Admins"
+    },
+    "/presets/{presetId}": {
+      "schema": { "$ref": "#/entities/PresetTemplate" },
+      "description": "Shared image presets manageable by editors and admins"
+    }
+  }
+}

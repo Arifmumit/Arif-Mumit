@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'arifmumit1987@gmail.com' ||
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isSuperAdmin == true)
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Users public profiles
+    match /users/{userId}/public/profile {
+      allow read: if isSignedIn();
+      
+      // Self registration: users can only set their role to 'user' unless bootstrapped super_admin
+      allow create: if isOwner(userId) && isValidId(userId) && (
+        (request.resource.data.role == 'user' && request.resource.data.isSuperAdmin == false) ||
+        (request.auth.token.email == 'arifmumit1987@gmail.com' && request.resource.data.isSuperAdmin == true)
+      );
+
+      // Super admin can update any profile; Admins can update non-super-admins; Users can update display info only
+      allow update: if isSignedIn() && (
+        // Super Admin can change any user role except demoting the primary Super Admin
+        isSuperAdmin() ||
+        // Regular Admins can manage regular users and editors (cannot modify super admin)
+        (isAdmin() && resource.data.isSuperAdmin == false && request.resource.data.isSuperAdmin == false) ||
+        // User updating own profile cannot change role or isSuperAdmin
+        (isOwner(userId) && 
+         request.resource.data.role == resource.data.role && 
+         request.resource.data.isSuperAdmin == resource.data.isSuperAdmin)
+      );
+
+      // Super Admin protection: NO ONE can delete a Super Admin profile!
+      allow delete: if isSuperAdmin() && resource.data.isSuperAdmin == false;
+    }
+
+    // Users private info (PII)
+    match /users/{userId}/private/info {
+      allow read, write: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Admins index collection
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      
+      // Only Super Admin can appoint or update admins, and primary bootstrap
+      allow create, update: if isSuperAdmin() || (request.auth.token.email == 'arifmumit1987@gmail.com' && userId == request.auth.uid);
+      
+      // SUPER ADMIN CANNOT BE DELETED BY ANYONE!
+      allow delete: if isSuperAdmin() && resource.data.isSuperAdmin == false;
+    }
+
+    // Audit logs
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isValidId(logId) && request.resource.data.performedByUid == request.auth.uid;
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // Presets collection
+    match /presets/{presetId} {
+      allow read: if true; // Public presets are readable by everyone
+      allow create: if isSignedIn() && isValidId(presetId) && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        resource.data.authorUid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+  }
+}
