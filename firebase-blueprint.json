@@ -74,6 +74,45 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "toolType", "authorUid"]
+    },
+    "AdminPost": {
+      "title": "AdminPost",
+      "description": "Published preset packs, tutorials, watermark templates, and tool updates created by Admins and Editors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 256 },
+        "toolCategory": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["published", "draft", "archived"] },
+        "summary": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "maxLength": 5000 },
+        "configJson": { "type": "string", "maxLength": 3000 },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "authorEmail": { "type": "string", "maxLength": 256 },
+        "authorName": { "type": "string", "maxLength": 128 },
+        "authorRole": { "type": "string", "maxLength": 32 },
+        "views": { "type": "number" },
+        "downloads": { "type": "number" },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "authorUid", "status"]
+    },
+    "AdminActivity": {
+      "title": "AdminActivity",
+      "description": "Audit log of posts and actions taken by each specific Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "maxLength": 256 },
+        "action": { "type": "string", "maxLength": 128 },
+        "targetType": { "type": "string", "maxLength": 64 },
+        "details": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "adminUid", "action", "timestamp"]
     }
   },
   "firestore": {
@@ -96,6 +135,14 @@
     "/presets/{presetId}": {
       "schema": { "$ref": "#/entities/PresetTemplate" },
       "description": "Shared image presets manageable by editors and admins"
+    },
+    "/admin_posts/{postId}": {
+      "schema": { "$ref": "#/entities/AdminPost" },
+      "description": "Published templates and articles by admins"
+    },
+    "/admin_activities/{activityId}": {
+      "schema": { "$ref": "#/entities/AdminActivity" },
+      "description": "Activity timeline of admin actions"
     }
   }
 }

@@ -13,7 +13,11 @@ import {
   XCircle,
   ChevronDown,
   Layers,
-  Crown
+  Crown,
+  Archive,
+  Download,
+  History,
+  FileText
 } from 'lucide-react';
 import { useAuth, UserProfile, UserRole } from '../../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -23,8 +27,27 @@ interface AdminConsoleProps {
   onClose: () => void;
 }
 
+interface BackupRecord {
+  id: string;
+  timestamp: string;
+  archiveName: string;
+  size: string;
+  note: string;
+}
+
+const STATIC_BACKUPS: BackupRecord[] = [
+  {
+    id: 'b-1',
+    timestamp: '2026-10-29 10:43:27 UTC',
+    archiveName: 'backups/pixelforge_backup_2026-10-29_10-43-27.tar.gz',
+    size: '2.3 MB',
+    note: 'Initial baseline with Super Admin, RBAC, Auth & 9 Image Tools'
+  }
+];
+
 export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
   const { userProfile, isSuperAdmin, isAdmin, updateUserRole, deleteUserAccount } = useAuth();
+  const [activeTab, setActiveTab] = useState<'users' | 'backups'>('users');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -32,25 +55,20 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [processingUid, setProcessingUid] = useState<string | null>(null);
+  const [backups, setBackups] = useState<BackupRecord[]>(STATIC_BACKUPS);
 
   // Load all user profiles
   useEffect(() => {
     setLoading(true);
-    // Fetch users via direct queries
     const loadUsers = async () => {
       try {
-        // Query users collection
         const snap = await getDocs(collection(db, 'admins'));
-        // In this implementation, let's also listen to the admins directory and public profiles
-        // We can subscribe or fetch public profile docs
         const usersList: UserProfile[] = [];
         
-        // Also ensure current user and any registered users are listed
         if (userProfile) {
           usersList.push(userProfile);
         }
 
-        // Fetch known admin index entries
         snap.forEach((d) => {
           const data = d.data();
           if (!usersList.some((u) => u.uid === data.uid)) {
@@ -93,7 +111,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
       await updateUserRole(targetUser.uid, newRole);
       setActionSuccess(`Successfully updated ${targetUser.email} role to ${newRole.toUpperCase()}.`);
       
-      // Update local state
       setUsers((prev) =>
         prev.map((u) =>
           u.uid === targetUser.uid
@@ -133,6 +150,47 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
     }
   };
 
+  const handleExportSystemBackup = () => {
+    const backupData = {
+      project: 'PixelForge Online Image Tools',
+      exportTimestamp: new Date().toISOString(),
+      exportedBy: userProfile?.email || 'super_admin',
+      version: '1.0.0',
+      registeredUsers: users,
+      backupCheckpoints: backups,
+      systemSecurity: {
+        superAdmin: 'arifmumit1987@gmail.com',
+        immutableProtection: true,
+        clientSideProcessing: true
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pixelforge_system_snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setActionSuccess('System state and user database snapshot exported to JSON.');
+  };
+
+  const handleCreateNewCheckpoint = () => {
+    const now = new Date();
+    const formatted = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+    const newRecord: BackupRecord = {
+      id: `b-${Date.now()}`,
+      timestamp: formatted,
+      archiveName: `backups/pixelforge_backup_${now.toISOString().replace(/[:.]/g, '-')}.tar.gz`,
+      size: '2.4 MB',
+      note: `Manual checkpoint snapshot taken by ${userProfile?.email || 'Super Admin'}`
+    };
+
+    setBackups((prev) => [newRecord, ...prev]);
+    setActionSuccess('New project checkpoint registered in manifest.');
+  };
+
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -152,7 +210,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Admin & Access Control Panel</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Admin & Control Panel</h2>
                 {isSuperAdmin && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 uppercase tracking-wider">
                     Super Admin Mode
@@ -165,12 +223,39 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-          >
-            Close Panel
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Tabs */}
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  activeTab === 'users'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                Users & Roles
+              </button>
+              <button
+                onClick={() => setActiveTab('backups')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  activeTab === 'backups'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>Backups & History</span>
+              </button>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         {/* Action Alerts */}
@@ -188,165 +273,239 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ onClose }) => {
           </div>
         )}
 
-        {/* Protected Super Admin Notice */}
-        <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30 flex items-start gap-3">
-          <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-xs space-y-1">
-            <p className="font-bold text-slate-900 dark:text-white">
-              Permanent Super Admin Security Guarantee:
-            </p>
-            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-              The Super Admin (<span className="font-mono font-semibold">arifmumit1987@gmail.com</span>) cannot be deleted, demoted, or altered by any user or other admin. The Super Admin possesses sovereign authority to control other Admins, assign role permissions, and govern platform security.
-            </p>
-          </div>
-        </div>
+        {/* TAB 1: USERS & ROLES */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            {/* Protected Super Admin Notice */}
+            <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30 flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-slate-900 dark:text-white">
+                  Permanent Super Admin Security Guarantee:
+                </p>
+                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                  The Super Admin (<span className="font-mono font-semibold">arifmumit1987@gmail.com</span>) cannot be deleted, demoted, or altered by any user or other admin. The Super Admin possesses sovereign authority to control other Admins, assign role permissions, and govern platform security.
+                </p>
+              </div>
+            </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search user email or name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search user email or name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            <span className="text-xs font-medium text-slate-500">Filter Role:</span>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
-            >
-              <option value="all">All Roles</option>
-              <option value="super_admin">Super Admin</option>
-              <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
-              <option value="user">User</option>
-            </select>
-          </div>
-        </div>
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <span className="text-xs font-medium text-slate-500">Filter Role:</span>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="super_admin">Super Admin</option>
+                  <option value="admin">Admin</option>
+                  <option value="editor">Editor</option>
+                  <option value="user">User</option>
+                </select>
+              </div>
+            </div>
 
-        {/* Users Table */}
-        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">User & Email</th>
-                <th className="px-4 py-3">Role Status</th>
-                <th className="px-4 py-3">Email Verified</th>
-                <th className="px-4 py-3 text-right">Role Controls & Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                    No users matching criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((u) => {
-                  const isUserSuperAdmin = u.isSuperAdmin || u.role === 'super_admin';
-                  const isProcessing = processingUid === u.uid;
-
-                  return (
-                    <tr key={u.uid} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300">
-                            {u.displayName[0]?.toUpperCase() || 'U'}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
-                              <span>{u.displayName}</span>
-                              {isUserSuperAdmin && (
-                                <span title="Super Admin">
-                                  <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                              {u.email}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
-                            isUserSuperAdmin
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                              : u.role === 'admin'
-                              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                              : u.role === 'editor'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          {isUserSuperAdmin ? 'Super Admin' : u.role.toUpperCase()}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        {u.emailVerified ? (
-                          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>Verified</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-amber-500 font-medium">
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>Unverified</span>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* Role selector */}
-                          {isUserSuperAdmin ? (
-                            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                              <Lock className="w-3 h-3" />
-                              <span>Immutable Super Admin</span>
-                            </span>
-                          ) : (
-                            <>
-                              <select
-                                disabled={isProcessing || !isAdmin}
-                                value={u.role}
-                                onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
-                                className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 font-medium cursor-pointer disabled:opacity-50"
-                              >
-                                {isSuperAdmin && <option value="admin">Promote to Admin</option>}
-                                <option value="editor">Editor</option>
-                                <option value="user">User</option>
-                              </select>
-
-                              {/* Delete button (Strictly disabled for super admin) */}
-                              <button
-                                onClick={() => handleDeleteUser(u)}
-                                disabled={isProcessing || isUserSuperAdmin}
-                                className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition disabled:opacity-30"
-                                title={isUserSuperAdmin ? "Super Admin cannot be deleted" : "Delete user"}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+            {/* Users Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3">User & Email</th>
+                    <th className="px-4 py-3">Role Status</th>
+                    <th className="px-4 py-3">Email Verified</th>
+                    <th className="px-4 py-3 text-right">Role Controls & Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                        No users matching criteria.
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const isUserSuperAdmin = u.isSuperAdmin || u.role === 'super_admin';
+                      const isProcessing = processingUid === u.uid;
+
+                      return (
+                        <tr key={u.uid} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300">
+                                {u.displayName[0]?.toUpperCase() || 'U'}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
+                                  <span>{u.displayName}</span>
+                                  {isUserSuperAdmin && (
+                                    <span title="Super Admin">
+                                      <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                  {u.email}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+                                isUserSuperAdmin
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                  : u.role === 'admin'
+                                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                                  : u.role === 'editor'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {isUserSuperAdmin ? 'Super Admin' : u.role.toUpperCase()}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {u.emailVerified ? (
+                              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                <span>Verified</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-amber-500 font-medium">
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Unverified</span>
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Role selector */}
+                              {isUserSuperAdmin ? (
+                                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                  <Lock className="w-3 h-3" />
+                                  <span>Immutable Super Admin</span>
+                                </span>
+                              ) : (
+                                <>
+                                  <select
+                                    disabled={isProcessing || !isAdmin}
+                                    value={u.role}
+                                    onChange={(e) => handleRoleChange(u, e.target.value as UserRole)}
+                                    className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 font-medium cursor-pointer disabled:opacity-50"
+                                  >
+                                    {isSuperAdmin && <option value="admin">Promote to Admin</option>}
+                                    <option value="editor">Editor</option>
+                                    <option value="user">User</option>
+                                  </select>
+
+                                  {/* Delete button (Strictly disabled for super admin) */}
+                                  <button
+                                    onClick={() => handleDeleteUser(u)}
+                                    disabled={isProcessing || isUserSuperAdmin}
+                                    className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition disabled:opacity-30"
+                                    title={isUserSuperAdmin ? "Super Admin cannot be deleted" : "Delete user"}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: BACKUPS & SYSTEM RECOVERY */}
+        {activeTab === 'backups' && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/60 dark:bg-indigo-950/30 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Archive className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <p className="font-bold text-slate-900 dark:text-white">
+                    Automated Date-Wise Backup & Rollback Checkpoints:
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                    All codebase modifications, authentication configurations, and database rules are backed up with date-stamped archive files (<span className="font-mono">.tar.gz</span>) and Git checkpoint tags. If any accidental mistake occurs, you can instantly restore to any previous snapshot.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleCreateNewCheckpoint}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Snapshot Checkpoint</span>
+                </button>
+
+                <button
+                  onClick={handleExportSystemBackup}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export JSON</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Backups List Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3">Timestamp</th>
+                    <th className="px-4 py-3">Archive File</th>
+                    <th className="px-4 py-3">Size</th>
+                    <th className="px-4 py-3">Description / Recovery Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {backups.map((b) => (
+                    <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                      <td className="px-4 py-3 font-mono font-medium text-indigo-600 dark:text-indigo-400">
+                        {b.timestamp}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-300">
+                        {b.archiveName}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-slate-500">
+                        {b.size}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                        {b.note}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

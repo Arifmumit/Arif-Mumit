@@ -34,6 +34,7 @@ import { SeoContent } from './components/SeoContent';
 import { Footer } from './components/Footer';
 import { AuthModal } from './components/auth/AuthModal';
 import { AdminConsole } from './components/admin/AdminConsole';
+import { AdminRoleDashboard } from './components/admin/AdminRoleDashboard';
 
 const TOOLS: ToolMeta[] = [
   { id: 'compress', title: 'Compress', shortDesc: 'Shrink file size with live split preview', iconName: 'Minimize2' },
@@ -56,9 +57,10 @@ function MainAppContent() {
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Auth and Admin Modals
+  // Auth, Admin and Role Dashboard Modals
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
+  const [isRoleDashboardOpen, setIsRoleDashboardOpen] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -239,6 +241,7 @@ function MainAppContent() {
         onToggleTheme={() => setDarkMode(!darkMode)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenRoleDashboard={() => setIsRoleDashboardOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -321,6 +324,9 @@ function MainAppContent() {
 
       {/* Super Admin & Admin Access Control Modal */}
       {isAdminOpen && <AdminConsole onClose={() => setIsAdminOpen(false)} />}
+
+      {/* Dedicated Admin & Editor Publications & Activity Dashboard */}
+      {isRoleDashboardOpen && <AdminRoleDashboard onClose={() => setIsRoleDashboardOpen(false)} />}
     </div>
   );
 }

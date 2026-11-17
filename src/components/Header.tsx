@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, UploadCloud, Moon, Sun, User, Crown, LogOut, ShieldCheck, MailCheck, AlertCircle } from 'lucide-react';
+import { Sparkles, UploadCloud, Moon, Sun, User, Crown, LogOut, ShieldCheck, MailCheck, AlertCircle, FileText } from 'lucide-react';
 import { ToolType } from '../types/image';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,6 +11,7 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onOpenAuth: () => void;
   onOpenAdmin: () => void;
+  onOpenRoleDashboard: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,9 +21,10 @@ export const Header: React.FC<HeaderProps> = ({
   darkMode,
   onToggleTheme,
   onOpenAuth,
-  onOpenAdmin
+  onOpenAdmin,
+  onOpenRoleDashboard
 }) => {
-  const { currentUser, userProfile, isSuperAdmin, isAdmin, logout, resendVerificationEmail } = useAuth();
+  const { currentUser, userProfile, isSuperAdmin, isAdmin, isEditor, logout, resendVerificationEmail } = useAuth();
   const [resending, setResending] = React.useState<boolean>(false);
   const [sentMessage, setSentMessage] = React.useState<boolean>(false);
 
@@ -110,7 +112,19 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Zone 3: Actions + User Account / Admin + Theme Toggle */}
           <div className="flex items-center gap-2.5 shrink-0">
-            {/* Admin Panel button if Admin or Super Admin */}
+            {/* Dedicated Role Dashboard for Admin and Editor publications */}
+            {(isAdmin || isEditor) && (
+              <button
+                onClick={onOpenRoleDashboard}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition shadow-sm"
+                title="Admin Publications & Activity Dashboard"
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="hidden sm:inline">My Posts & Activity</span>
+              </button>
+            )}
+
+            {/* Admin Access Panel button if Admin or Super Admin */}
             {isAdmin && (
               <button
                 onClick={onOpenAdmin}

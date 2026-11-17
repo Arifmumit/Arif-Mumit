@@ -93,5 +93,22 @@ service cloud.firestore {
         isAdmin()
       );
     }
+
+    // Admin and Editor Posts and Published Templates
+    match /admin_posts/{postId} {
+      allow read: if true; // Readable by all users
+      allow create: if isSignedIn() && isValidId(postId) && request.resource.data.authorUid == request.auth.uid && (isAdmin() || resource.data.authorRole == 'editor');
+      allow update, delete: if isSignedIn() && (
+        resource.data.authorUid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // Admin personal Activity Log
+    match /admin_activities/{activityId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isValidId(activityId) && request.resource.data.adminUid == request.auth.uid;
+      allow update, delete: if false; // Immutable audit log
+    }
   }
 }
